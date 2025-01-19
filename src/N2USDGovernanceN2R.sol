@@ -7,10 +7,10 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import "./N2R.sol";
 import "./N2USD.sol";
 
-contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
+contract N2USDGovernanceN2R is Ownable, ReentrancyGuard, AccessControl {
 
     using SafeERC20 for ERC20;
 
@@ -27,8 +27,8 @@ contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
 
     mapping (uint256 => reserveList) public rsvList;
 
+    N2R private n2r;
     N2USD private n2usd;
-    AggregatorV3Interface private priceOracle;
     address private reserveContract;
     uint256 public n2usdSupply;
     address public dataFeed;
@@ -47,8 +47,9 @@ contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
     event RepegAction(uint256 time, uint256 amount);
     event Withdraw(uint256 time, uint256 amount);
 
-    constructor(N2USD _n2usd) Ownable(msg.sender) {
+    constructor(N2USD _n2usd, N2R _n2r) Ownable(msg.sender) {
         n2usd = _n2usd;
+        n2r = _n2r;
         grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         grantRole(GOVERNOR_ROLE, msg.sender);
     }
@@ -59,21 +60,16 @@ contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
         reserveCount++;
     }
 
-    function setDataFeedAddress(address contractAddress) external {
-        require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
-        dataFeed = contractAddress;
-        priceOracle = AggregatorV3Interface(dataFeed);
-    }
-
-    function fetchCollateralPrice() external nonReentrant {
-        require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
-        (, int256 price, , , ) = priceOracle.latestRoundData();
-        unstableCollateralPrice = uint256(price)*COLLATERAL_PRICE_TO_WEI;
-    }
-
     function setReserveContract(address _reserveContract) external nonReentrant {
         require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
         reserveContract = _reserveContract;
+    }
+
+    function setN2RTokenPrice(uint256 marketCap) external nonReentrant {
+        require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
+        uint256 n2rSupply = n2r.totalSupply();
+        uint256 n2rPrice = marketCap/n2rSupply;
+        unstableCollateralPrice = n2rPrice;
     }
 
     function collateralRebalancing() internal returns (bool) {
@@ -102,13 +98,14 @@ contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
 
             if(collateralValue < n2usdSupply) {
                 uint256 supplyChange = n2usdSupply - collateralValue;
-                n2usd.burn(supplyChange);
+                uint256 burnAmount = (supplyChange/unstableCollateralPrice)*WEI_VALUE;
+                n2r.burn(burnAmount);
                 _supplyChanges[supplyChangeCount] = SupChange("burn", supplyChange, block.timestamp, block.number);
                 supplyChangeCount++;
                 emit RepegAction(block.timestamp, supplyChange);
             } else if(collateralValue > n2usdSupply) {
                 uint256 supplyChange = collateralValue - n2usdSupply;
-                n2usd.mint(supplyChange);
+                n2r.mint(supplyChange);
                 _supplyChanges[supplyChangeCount] = SupChange("mint", supplyChange, block.timestamp, block.number);
                 supplyChangeCount++;
                 emit RepegAction(block.timestamp, supplyChange);
@@ -119,7 +116,14 @@ contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
 
     function withdraw(uint256 _amount) external nonReentrant {
         require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
-        n2usd.safeTransfer(msg.sender, _amount);
+        n2usd.transfer(address(msg.sender), _amount);
         emit Withdraw(block.timestamp, _amount);
     }
+
+    function withdrawN2R(uint256 _amount) external nonReentrant {
+        require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
+        n2r.transfer(address(msg.sender), _amount);
+        emit Withdraw(block.timestamp, _amount);
+    }
+
 }
