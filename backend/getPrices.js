@@ -44,6 +44,7 @@ async function getN2UsdPrice() {
     console.log("USDT collateral: ", usdtCollateralRaw)
     console.log("ETH collateral: ", ethCollateralRaw)
     
+    return n2usdPrice
 }
 
 module.exports = {
