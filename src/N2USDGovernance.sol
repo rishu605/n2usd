@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import {N2USD} from "./N2USD.sol";
+import "./N2USD.sol";
 
 contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
 
@@ -91,5 +91,35 @@ contract N2USDGovernance is Ownable, ReentrancyGuard, AccessControl {
         return true;
     }
 
-    
+    function validatePeg() external nonReentrant {
+        require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
+        n2usdSupply = n2usd.totalSupply();
+        bool result = collateralRebalancing();
+
+        if(result == true) {
+            uint256 rawCollateralValue = (stableCollateralAmount*1e18) + (unstableCollateralAmount*unstableCollateralPrice);
+            uint256 collateralValue = rawCollateralValue*WEI_VALUE;
+
+            if(collateralValue < n2usdSupply) {
+                uint256 supplyChange = n2usdSupply - collateralValue;
+                n2usd.burn(supplyChange);
+                _supplyChanges[supplyChangeCount] = SupChange("burn", supplyChange, block.timestamp, block.number);
+                supplyChangeCount++;
+                emit RepegAction(block.timestamp, supplyChange);
+            } else if(collateralValue > n2usdSupply) {
+                uint256 supplyChange = collateralValue - n2usdSupply;
+                n2usd.mint(supplyChange);
+                _supplyChanges[supplyChangeCount] = SupChange("mint", supplyChange, block.timestamp, block.number);
+                supplyChangeCount++;
+                emit RepegAction(block.timestamp, supplyChange);
+            }
+            n2usdSupply = collateralValue;
+        }
+    }
+
+    function withdraw(uint256 _amount) external nonReentrant {
+        require(hasRole(GOVERNOR_ROLE, _msgSender()), "Not Allowed");
+        n2usd.safeTransfer(msg.sender, _amount);
+        emit Withdraw(block.timestamp, _amount);
+    }
 }
