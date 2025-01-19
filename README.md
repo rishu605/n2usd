@@ -1,5 +1,14 @@
-N2USD - Algorithmic StableCoin pegged to ETH. 
-1 token  = 1 USD
+- N2USD - Algorithmic StableCoin pegged to ETH. 
+- 1 token  = 1 USD
+
+- N2USDGovernance - Burns and mints N2USD to mantain $1 peg.
+- BUT, this is not possible when this coin is in circulation.
+
+- N2USDGovernanceN2R - A new token which will be burnt or minted to maintain the peg of N2USD to $1.
+
+- N2R - We have a much mroe supply of this token as compared to N2USD to easily maintain the peg.
+
+- All this happens Algorithmically.
 
 ## Foundry
 
