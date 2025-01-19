@@ -1,3 +1,6 @@
+N2USD - Algorithmic StableCoin pegged to ETH. 
+1 token  = 1 USD
+
 ## Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
